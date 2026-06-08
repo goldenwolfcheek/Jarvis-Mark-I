@@ -11,7 +11,7 @@
 # --- Jarvis Runtime Data (contains API keys) ---
 # Note: actual runtime config is at ~/.jarvis/ (outside repo)
 # These catch any accidental copies in the project directory
-.jalvis/
+.jarvis/
 config.json
 registered_apps.json
 
