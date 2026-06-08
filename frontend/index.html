@@ -1,0 +1,1970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jarvis Mark 1</title>
+<style>
+  /* ============================================================
+     RESET & BASE
+     ============================================================ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #0a0a0f;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  /* ============================================================
+     JARVIS CONTAINER — full-screen, layered
+     ============================================================ */
+  #jarvis-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at center, #0d1b2a 0%, #0a0a0f 70%);
+  }
+
+  /* ============================================================
+     THREE.JS SPHERE CANVAS
+     ============================================================ */
+  #sphere-container {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    pointer-events: none;  /* allow click-through to chat */
+  }
+  #sphere-container canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+  }
+  #subtitle-bar {
+    position: absolute;
+    bottom: 25%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+    color: #66ccff;
+    font-size: 1rem;
+    font-weight: 300;
+    letter-spacing: 0.08em;
+    text-align: center;
+    text-shadow: 0 0 20px rgba(0,170,255,0.4);
+    padding: 8px 24px;
+    background: rgba(0,15,30,0.6);
+    border: 1px solid rgba(0,170,255,0.15);
+    border-radius: 8px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    max-width: 70%;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+    opacity: 0.9;
+    font-family: inherit;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    display: none;  /* hidden by default, shown only when AI speaks */
+  }
+
+  /* ============================================================
+     GREETING TEXT (shown before first message)
+     ============================================================ */
+  #greeting {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    pointer-events: none;
+    transition: opacity 0.8s ease;
+    margin-bottom: 80px;
+  }
+  #greeting h1 {
+    font-size: 2.5rem;
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    color: #00aaff;
+    text-shadow: 0 0 40px rgba(0,170,255,0.3);
+  }
+  #greeting p {
+    font-size: 1rem;
+    color: #6688aa;
+    margin-top: 12px;
+    letter-spacing: 0.05em;
+  }
+  #greeting.hidden { opacity: 0; }
+
+  /* ============================================================
+     THINKING INDICATOR
+     ============================================================ */
+  #thinking {
+    position: relative;
+    z-index: 1;
+    display: none;
+    margin-bottom: 80px;
+  }
+  #thinking .dots span {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #00aaff;
+    margin: 0 6px;
+    animation: pulse-dot 1.4s ease-in-out infinite;
+  }
+  #thinking .dots span:nth-child(2) { animation-delay: 0.2s; }
+  #thinking .dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes pulse-dot {
+    0%, 80%, 100% { transform: scale(0.5); opacity: 0.3; }
+    40% { transform: scale(1.2); opacity: 1; }
+  }
+  #thinking .label {
+    color: #4488aa;
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
+    margin-top: 20px;
+    text-align: center;
+  }
+
+  /* ============================================================
+     CONNECTION STATUS BADGE (bottom-center, always visible)
+     ============================================================ */
+  #connection-status {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+    color: #4488aa;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    opacity: 0.4;
+    pointer-events: none;
+    transition: opacity 0.5s, color 0.5s;
+    text-transform: uppercase;
+  }
+  #connection-status.online { color: #44cc88; opacity: 0.5; }
+  #connection-status.offline { color: #cc6644; opacity: 0.6; }
+
+  @keyframes breathe {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.3); }
+  }
+
+  /* ============================================================
+     CHAT AREA
+     ============================================================ */
+  #chat-area {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    max-height: 50vh;
+  }
+
+  /* Messages scrollable area */
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 24px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: #1a3a5a transparent;
+    mask-image: linear-gradient(to bottom, transparent 0%, black 20%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%);
+  }
+  #messages::-webkit-scrollbar { width: 4px; }
+  #messages::-webkit-scrollbar-track { background: transparent; }
+  #messages::-webkit-scrollbar-thumb { background: #1a3a5a; border-radius: 4px; }
+
+  /* Message bubbles */
+  .msg {
+    max-width: 75%;
+    padding: 10px 16px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    word-wrap: break-word;
+    animation: msg-in 0.3s ease-out;
+  }
+  @keyframes msg-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #004488, #0066aa);
+    color: #fff;
+    border-bottom-right-radius: 2px;
+  }
+  .msg.jarvis {
+    align-self: flex-start;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(0,170,255,0.15);
+    color: #c0d8f0;
+    border-bottom-left-radius: 2px;
+  }
+  .msg.jarvis .speaker {
+    display: inline-block;
+    margin-right: 6px;
+    color: #00aaff;
+    font-weight: 600;
+  }
+  .msg.jarvis .play-btn {
+    display: inline-block;
+    margin-left: 8px;
+    cursor: pointer;
+    color: #4488aa;
+    font-size: 0.8rem;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+  }
+  .msg.jarvis .play-btn:hover { opacity: 1; }
+
+  /* ============================================================
+     INPUT AREA
+     ============================================================ */
+  #input-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px 24px;
+    background: linear-gradient(transparent, rgba(10,10,15,0.95) 40%);
+  }
+  #input-area button {
+    background: none;
+    border: none;
+    color: #4488aa;
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.2s;
+    width: 42px; height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  #input-area button:hover {
+    background: rgba(0,170,255,0.1);
+    color: #00aaff;
+  }
+  #input-area button:active { transform: scale(0.9); }
+  #input-area button.recording {
+    color: #ff4444;
+    animation: rec-pulse 1s ease-in-out infinite;
+  }
+  @keyframes rec-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,68,68,0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(255,68,68,0); }
+  }
+
+  #message-input {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(0,170,255,0.15);
+    border-radius: 24px;
+    padding: 10px 18px;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+    font-family: inherit;
+  }
+  #message-input:focus { border-color: #00aaff; }
+  #message-input::placeholder { color: #335577; }
+
+  /* ---- Model selector bar (like ChatGPT) ---- */
+  #model-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 16px; margin-top: 4px;
+  }
+  .model-select-wrap { position: relative; min-width: 180px; }
+  #chat-model-select {
+    background: #0a1a2a; color: #8ab; border: 1px solid #1a3a4a;
+    border-radius: 6px; padding: 4px 10px; font-size: 13px;
+    cursor: pointer; width: 100%;
+  }
+  #chat-model-select:hover { border-color: #00aaff44; }
+  #chat-model-select option { background: #0a1a2a; color: #cde; }
+  .custom-model-panel {
+    display: flex; align-items: center; gap: 6px; margin-top: 4px;
+  }
+  #model-bar .key-status { font-size: 11px; color: #666; }
+  #model-bar .key-status.has-key { color: #4c4; }
+  #model-bar .key-status.no-key { color: #c84; }
+  #model-bar .provider-name { font-size: 11px; color: #556; margin-left: auto; }
+
+  #send-btn {
+    background: linear-gradient(135deg, #004488, #0066aa) !important;
+    color: #fff !important;
+    border-radius: 50% !important;
+  }
+  #send-btn:hover {
+    background: linear-gradient(135deg, #0055aa, #0077cc) !important;
+    box-shadow: 0 0 20px rgba(0,170,255,0.3);
+  }
+  #send-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none !important;
+  }
+
+  /* ============================================================
+     SETTINGS BUTTON (top-right)
+     ============================================================ */
+  #settings-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 2;
+    background: none;
+    border: 1px solid rgba(0,170,255,0.2);
+    color: #4488aa;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+  #settings-btn:hover {
+    background: rgba(0,170,255,0.1);
+    border-color: #00aaff;
+    color: #00aaff;
+  }
+
+  /* ============================================================
+     SETTINGS PANEL (slide-in)
+     ============================================================ */
+  #settings-panel {
+    position: absolute;
+    top: 0; right: -380px;
+    width: 360px; height: 100%;
+    z-index: 10;
+    background: rgba(13,20,30,0.97);
+    border-left: 1px solid rgba(0,170,255,0.15);
+    padding: 24px;
+    overflow-y: auto;
+    transition: right 0.3s ease;
+    backdrop-filter: blur(12px);
+  }
+  #settings-panel.open { right: 0; }
+  #settings-panel h2 {
+    color: #00aaff;
+    font-weight: 300;
+    letter-spacing: 0.1em;
+    margin-bottom: 20px;
+    font-size: 1.2rem;
+  }
+  #settings-panel .close-btn {
+    position: absolute;
+    top: 20px; right: 20px;
+    background: none; border: none;
+    color: #4488aa;
+    font-size: 1.4rem;
+    cursor: pointer;
+  }
+  #settings-panel .close-btn:hover { color: #00aaff; }
+
+  /* ---- Provider settings UI ---- */
+  #settings-panel .apikey-row {
+    display: flex;
+    gap: 4px;
+  }
+  #settings-panel .apikey-row input { flex: 1; }
+  .toggle-key-btn {
+    background: #1a2a3a;
+    border: 1px solid #334;
+    color: #8ab;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .toggle-key-btn:hover { background: #2a3a4a; }
+  .jarvis-btn {
+    background: #1a2a3a;
+    border: 1px solid #334;
+    color: #cde;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+  .jarvis-btn:hover { background: #2a3a4a; border-color: #00aaff44; }
+  .jarvis-btn.primary {
+    background: #005a88;
+    border-color: #00aaff;
+    color: #fff;
+    font-weight: 600;
+  }
+  .jarvis-btn.primary:hover { background: #0077bb; }
+  .setting-group.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .test-result {
+    width: 100%;
+    margin-top: 6px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    display: none;
+  }
+  .test-result.success { display: block; background: #0a2a1a; color: #4c4; border: 1px #282; }
+  .test-result.error { display: block; background: #2a0a0a; color: #c44; border: 1px #822; }
+  .model-suggestions {
+    display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
+  }
+  .model-suggestions span {
+    background: #1a2a3a; border: 1px solid #334; border-radius: 4px;
+    padding: 2px 8px; font-size: 11px; color: #8ab; cursor: pointer;
+  }
+  .model-suggestions span:hover { background: #2a3a4a; border-color: #00aaff44; }
+  .model-row { display: flex; gap: 4px; }
+  .model-row input { flex: 1; }
+  .jarvis-btn.small { padding: 4px 10px; font-size: 11px; white-space: nowrap; }
+  .setting-hint { color: #556; font-size: 12px; margin: 2px 0 0 0; line-height: 1.4; }
+
+  /* ---- Provider Keys Manager ---- */
+  #provider-keys-list {
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .provider-key-row {
+    display: flex; align-items: center; gap: 6px;
+    background: #0e1a28; padding: 6px 10px; border-radius: 4px;
+    border: 1px solid #1a2a3a;
+  }
+  .provider-key-row .pname {
+    min-width: 100px; color: #8ab; font-size: 0.85rem; font-weight: 500;
+  }
+  .provider-key-row .pstatus {
+    font-size: 0.75rem; min-width: 60px;
+  }
+  .provider-key-row .pstatus.has-key { color: #4c4; }
+  .provider-key-row .pstatus.no-key { color: #666; }
+  .provider-key-row input {
+    flex: 1; background: #0a1522; color: #8ab; border: 1px solid #1a2a3a;
+    border-radius: 3px; padding: 4px 8px; font-size: 0.75rem; font-family: monospace;
+  }
+  .provider-key-row .edit-key-btn {
+    background: #1a2a3a; border: none; color: #8ab; padding: 3px 8px;
+    border-radius: 3px; cursor: pointer; font-size: 0.75rem;
+  }
+  .provider-key-row .edit-key-btn:hover { background: #2a3a4a; color: #aef; }
+  .provider-key-row .is-current { color: #0af; font-size: 0.7rem; margin-left: auto; }
+  #settings-panel hr { border: none; border-top: 1px solid #1a2a3a; margin: 12px 0; }
+
+  .setting-group {
+    margin-bottom: 20px;
+  }
+  .setting-group label {
+    display: block;
+    color: #6688aa;
+    font-size: 0.8rem;
+    margin-bottom: 6px;
+    letter-spacing: 0.05em;
+  }
+  .setting-group select,
+  .setting-group input[type="text"] {
+    width: 100%;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(0,170,255,0.15);
+    color: #e0e0e0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .setting-group select {
+    /* Remove native OS styling and add custom arrow */
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234488aa'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 10px 6px;
+    padding-right: 30px;
+    cursor: pointer;
+  }
+  .setting-group select:hover {
+    background-color: rgba(255,255,255,0.08);
+    border-color: rgba(0,170,255,0.3);
+  }
+  .setting-group select option {
+    background: #0d1a28;
+    color: #c8d8e8;
+    padding: 6px 10px;
+  }
+  .setting-group select:focus,
+  .setting-group input:focus {
+    border-color: #00aaff;
+    box-shadow: 0 0 0 1px rgba(0,170,255,0.2);
+  }
+  .setting-group .toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+  }
+  .setting-group .toggle label { margin-bottom: 0; }
+  .toggle-switch {
+    width: 40px; height: 22px;
+    background: #1a2a3a;
+    border-radius: 11px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle-switch.on { background: #004488; }
+  .toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 18px; height: 18px;
+    background: #e0e0e0;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  .toggle-switch.on::after { transform: translateX(18px); }
+
+  .app-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.85rem;
+  }
+  .app-item .del-btn {
+    background: none; border: none;
+    color: #884444;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 2px 6px;
+  }
+  .app-item .del-btn:hover { color: #ff4444; }
+
+  #add-app-form {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  #add-app-form input {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(0,170,255,0.15);
+    color: #e0e0e0;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    outline: none;
+    font-family: inherit;
+  }
+  #add-app-form input:focus { border-color: #00aaff; }
+  #add-app-form button {
+    background: #004488;
+    border: none;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+  }
+  #add-app-form button:hover { background: #0055aa; }
+
+  /* ============================================================
+     OVERLAY
+     ============================================================ */
+  #overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 5;
+    background: rgba(0,0,0,0.5);
+    display: none;
+  }
+  #overlay.visible { display: block; }
+
+  /* ============================================================
+     RESPONSIVE
+     ============================================================ */
+  @media (max-width: 600px) {
+    #greeting h1 { font-size: 1.6rem; }
+    .msg { max-width: 88%; font-size: 0.85rem; }
+    #input-area { padding: 8px 12px 16px; }
+    #settings-panel { width: 100%; right: -100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     JARVIS CONTAINER
+     ============================================================ -->
+<div id="jarvis-container">
+
+  <!-- Three.js Sphere -->
+  <div id="sphere-container"></div>
+
+  <!-- Subtitle bar — shows AI speech during responses (toggleable) -->
+  <div id="subtitle-bar"></div>
+
+  <!-- Connection status — always visible, shows online/offline -->
+  <div id="connection-status">SYSTEM ONLINE</div>
+
+  <!-- Greeting -->
+  <div id="greeting">
+    <h1>J.A.R.V.I.S.</h1>
+    <p>Just A Rather Very Intelligent System — Mark 1</p>
+  </div>
+
+  <!-- Thinking Indicator -->
+  <div id="thinking">
+    <div class="dots">
+      <span></span><span></span><span></span>
+    </div>
+    <div class="label">PROCESSING</div>
+  </div>
+
+  <!-- Chat Area -->
+  <div id="chat-area">
+    <div id="messages"></div>
+    <div id="input-area">
+      <button id="mic-btn" title="Voice input">🎤</button>
+      <button id="image-btn" title="Attach image">🖼️</button>
+      <input
+        id="message-input"
+        type="text"
+        placeholder="What can I help you with, sir?"
+        autofocus
+      />
+      <button id="send-btn" title="Send">➤</button>
+    </div>
+    <!-- Model selector bar (like ChatGPT's model picker) -->
+    <div id="model-bar">
+      <div class="model-select-wrap">
+        <select id="chat-model-select" title="Select AI model">
+          <option value="deepseek-v4-flash-free">deepseek-v4-flash-free</option>
+        </select>
+        <div id="custom-model-panel" class="custom-model-panel" style="display:none">
+          <input type="text" id="custom-model-input" placeholder="Type model name and press Enter"
+                 style="flex:1;background:#0a1a2a;color:#8ab;border:1px solid #1a3a4a;border-radius:4px;padding:4px 8px;font-size:12px;" />
+          <button id="custom-model-set" style="background:#1a3a4a;color:#8ab;border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;">Set</button>
+        </div>
+      </div>
+      <span id="model-bar-key-status" class="key-status"></span>
+      <span id="model-bar-provider" class="provider-name"></span>
+    </div>
+  </div>
+
+  <!-- Settings Button -->
+  <button id="settings-btn">⚙ Settings</button>
+
+  <!-- Overlay -->
+  <div id="overlay"></div>
+
+  <!-- Settings Panel -->
+  <div id="settings-panel">
+    <button class="close-btn" id="close-settings">✕</button>
+    <h2>⚙ SETTINGS</h2>
+
+    <!-- Provider selector — like Hermes' dropdown -->
+    <div class="setting-group">
+      <label>AI Provider</label>
+      <select id="sel-provider">
+        <option value="">— Select Provider —</option>
+      </select>
+    </div>
+
+    <!-- Base URL (auto-filled from preset, editable for custom) -->
+    <div class="setting-group" id="group-baseurl" style="display:none;">
+      <label>Base URL</label>
+      <input type="text" id="input-baseurl" placeholder="https://api.openai.com/v1" />
+    </div>
+
+    <!-- Model (now in chat bar, not settings) -->
+    <div class="setting-group">
+      <label>Model</label>
+      <p class="setting-hint">Select model from the dropdown below the chat input.
+      Models will auto-fetch when you select a provider.</p>
+    </div>
+
+    <!-- API Key -->
+    <div class="setting-group">
+      <label>API Key</label>
+      <div class="apikey-row">
+        <input type="password" id="input-apikey" placeholder="sk-..." />
+        <button class="toggle-key-btn" id="toggle-apikey-vis" title="Show/Hide">👁</button>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="setting-group actions">
+      <button class="jarvis-btn primary" id="btn-save-provider">
+        ✓ Save Provider
+      </button>
+      <button class="jarvis-btn" id="btn-test-provider">
+        ⟳ Test Connection
+      </button>
+      <div id="test-result" class="test-result"></div>
+    </div>
+
+    <hr />
+
+    <!-- Toggles -->
+    <div class="setting-group">
+      <div class="toggle">
+        <label>Auto-speak responses</label>
+        <div class="toggle-switch on" id="toggle-autospeak"></div>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="toggle">
+        <label>Start on boot</label>
+        <div class="toggle-switch" id="toggle-boot"></div>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="toggle">
+        <label>Show subtitles</label>
+        <div class="toggle-switch on" id="toggle-subtitles"></div>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="toggle">
+        <label>Show chat input</label>
+        <div class="toggle-switch on" id="toggle-chat-input"></div>
+      </div>
+    </div>
+
+    <hr />
+
+    <!-- Provider Manager -->
+    <div class="setting-group">
+      <label>Provider Keys Manager</label>
+      <p class="setting-hint">View and edit API keys for all providers.</p>
+      <div id="provider-keys-list"></div>
+    </div>
+
+    <hr />
+
+    <!-- Registered Apps -->
+    <div class="setting-group">
+      <label>Registered Apps</label>
+      <div id="app-list"></div>
+      <div id="add-app-form">
+        <input id="new-app-name" placeholder="App name" />
+        <input id="new-app-cmd" placeholder="Command" />
+        <button id="add-app-btn">+</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     THREE.JS — JARVIS SPHERE
+     ============================================================ -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+// ================================================================
+// THREE.JS — DUAL PARTICLE SPHERE
+// ================================================================
+import * as THREE from 'three';
+
+const container = document.getElementById('sphere-container');
+
+// --- Scene Setup ---
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 100);
+camera.position.z = 6;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 0);
+container.appendChild(renderer.domElement);
+
+// --- Shared Shader (define BEFORE using) ---
+const vertexShader = `
+  attribute float size;
+  attribute vec3 color;
+  varying vec3 vColor;
+  void main() {
+    vColor = color;
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    gl_PointSize = size * (300.0 / -mvPosition.z);
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+const fragmentShader = `
+  varying vec3 vColor;
+  void main() {
+    float d = distance(gl_PointCoord, vec2(0.5));
+    if (d > 0.5) discard;
+    float alpha = 1.0 - smoothstep(0.0, 0.5, d);
+    float glow = exp(-d * 6.0);
+    gl_FragColor = vec4(vColor, alpha * 0.8 + glow * 0.2);
+  }
+`;
+
+const shaderMat = new THREE.ShaderMaterial({
+  uniforms: {},
+  vertexShader,
+  fragmentShader,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+});
+
+// --- Futuristic Background: Starfield ---
+const STAR_COUNT = 500;
+const starPos = new Float32Array(STAR_COUNT * 3);
+const starCol = new Float32Array(STAR_COUNT * 3);
+const starSz  = new Float32Array(STAR_COUNT);
+for (let i = 0; i < STAR_COUNT; i++) {
+  // Random spread in a large sphere
+  const r = 6 + Math.random() * 8;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  starPos[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+  starPos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+  starPos[i*3+2] = r * Math.cos(phi);
+  // Dim blue-white
+  const bright = 0.1 + 0.3 * Math.random();
+  starCol[i*3]   = 0.3 * bright;
+  starCol[i*3+1] = 0.6 * bright;
+  starCol[i*3+2] = 1.0 * bright;
+  starSz[i]  = 0.008 + 0.02 * Math.random();
+}
+const starGeo = new THREE.BufferGeometry();
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+starGeo.setAttribute('color', new THREE.BufferAttribute(starCol, 3));
+starGeo.setAttribute('size', new THREE.BufferAttribute(starSz, 1));
+const starField = new THREE.Points(starGeo, shaderMat);
+scene.add(starField);
+
+// Subtle circular HUD ring behind spheres
+const ringPoints = [];
+for (let i = 0; i <= 128; i++) {
+  const a = (i / 128) * Math.PI * 2;
+  ringPoints.push(Math.sin(a) * 3.5, Math.cos(a) * 2.0, -2.5);
+}
+const ringGeo = new THREE.BufferGeometry();
+ringGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(ringPoints), 3));
+const ringMat = new THREE.LineBasicMaterial({ color: 0x004488, transparent: true, opacity: 0.12 });
+const ring = new THREE.Line(ringGeo, ringMat);
+scene.add(ring);
+const ring2 = ring.clone();
+ring2.position.z = 2.5;
+scene.add(ring2);
+
+// --- Constants ---
+const FIXED_RADIUS = 2.8;        // Outer fixed sphere (never changes)
+const PULSE_REST   = 1.2;        // Inner sphere radius when quiet
+const PULSE_MAX    = 1.9;        // Inner sphere radius when loud
+const FIXED_COUNT  = 2000;
+const PULSE_COUNT  = 1000;
+const TOTAL        = FIXED_COUNT + PULSE_COUNT;
+
+// === FIXED SPHERE (outer, constant radius) ===
+const fixedPos = new Float32Array(FIXED_COUNT * 3);
+const fixedCol = new Float32Array(FIXED_COUNT * 3);
+const fixedSz  = new Float32Array(FIXED_COUNT);
+
+for (let i = 0; i < FIXED_COUNT; i++) {
+  const phi   = Math.acos(1 - 2 * (i + 0.5) / FIXED_COUNT);
+  const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+  fixedPos[i*3]   = FIXED_RADIUS * Math.sin(phi) * Math.cos(theta);
+  fixedPos[i*3+1] = FIXED_RADIUS * Math.sin(phi) * Math.sin(theta);
+  fixedPos[i*3+2] = FIXED_RADIUS * Math.cos(phi);
+  // Dim blue — stays fixed
+  const b = 0.3 + 0.5 * Math.random();
+  fixedCol[i*3]   = 0.05 * b;
+  fixedCol[i*3+1] = 0.3 * b;
+  fixedCol[i*3+2] = 0.8 * b;
+  fixedSz[i]  = 0.02 + 0.04 * Math.random();
+}
+
+const fixedGeo = new THREE.BufferGeometry();
+fixedGeo.setAttribute('position', new THREE.BufferAttribute(fixedPos, 3));
+fixedGeo.setAttribute('color', new THREE.BufferAttribute(fixedCol, 3));
+fixedGeo.setAttribute('size', new THREE.BufferAttribute(fixedSz, 1));
+const fixedPoints = new THREE.Points(fixedGeo, shaderMat);
+scene.add(fixedPoints);
+
+// === PULSING SPHERE (inner, expands/contracts with AI voice) ===
+const pulsePos = new Float32Array(PULSE_COUNT * 3);
+const pulseCol = new Float32Array(PULSE_COUNT * 3);
+const pulseSz  = new Float32Array(PULSE_COUNT);
+const pulseDir = new Float32Array(PULSE_COUNT * 3);  // Unit vectors
+
+for (let i = 0; i < PULSE_COUNT; i++) {
+  const phi   = Math.acos(1 - 2 * (i + 0.5) / PULSE_COUNT);
+  const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+  pulseDir[i*3]   = Math.sin(phi) * Math.cos(theta);
+  pulseDir[i*3+1] = Math.sin(phi) * Math.sin(theta);
+  pulseDir[i*3+2] = Math.cos(phi);
+  const r = PULSE_REST;
+  pulsePos[i*3]     = pulseDir[i*3]   * r;
+  pulsePos[i*3+1]   = pulseDir[i*3+1] * r;
+  pulsePos[i*3+2]   = pulseDir[i*3+2] * r;
+  // Brighter blue-white
+  const b = 0.5 + 0.5 * Math.random();
+  pulseCol[i*3]     = 0.3 * b;
+  pulseCol[i*3+1]   = 0.7 * b;
+  pulseCol[i*3+2]   = 1.0 * b;
+  pulseSz[i]  = 0.04 + 0.06 * Math.random();
+}
+
+const pulseGeo = new THREE.BufferGeometry();
+pulseGeo.setAttribute('position', new THREE.BufferAttribute(pulsePos, 3));
+pulseGeo.setAttribute('color', new THREE.BufferAttribute(pulseCol, 3));
+pulseGeo.setAttribute('size', new THREE.BufferAttribute(pulseSz, 1));
+const pulsePoints = new THREE.Points(pulseGeo, shaderMat);
+scene.add(pulsePoints);
+
+// --- Inner glow sphere (visual anchor) ---
+const glowGeo = new THREE.SphereGeometry(FIXED_RADIUS * 0.35, 20, 20);
+const glowMat = new THREE.MeshBasicMaterial({
+  color: 0x004488,
+  transparent: true,
+  opacity: 0.04,
+  wireframe: true,
+});
+const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+scene.add(glowMesh);
+
+// --- State ---
+let isSpeaking = false;
+let amplitude = 0;            // 0 (quiet) → 1 (loud), smoothly lerped
+let targetAmplitude = 0;
+const LERP_SPEED = 0.09;      // Smoothing factor (higher = more responsive)
+
+// --- Animation Loop ---
+function animate() {
+  requestAnimationFrame(animate);
+
+  // Smooth amplitude — matches AI "volume"
+  amplitude += (targetAmplitude - amplitude) * LERP_SPEED;
+
+  // Current inner sphere radius
+  const pulseRadius = PULSE_REST + amplitude * (PULSE_MAX - PULSE_REST);
+
+  // Update pulsing sphere positions
+  const pp = pulseGeo.attributes.position.array;
+  for (let i = 0; i < PULSE_COUNT; i++) {
+    const i3 = i * 3;
+    pp[i3]     = pulseDir[i3]   * pulseRadius;
+    pp[i3+1]   = pulseDir[i3+1] * pulseRadius;
+    pp[i3+2]   = pulseDir[i3+2] * pulseRadius;
+  }
+  pulseGeo.attributes.position.needsUpdate = true;
+
+  // Update pulsing sphere colors — brighter when expanded
+  const pc = pulseGeo.attributes.color.array;
+  const colorBright = 0.5 + amplitude * 0.5;
+  for (let i = 0; i < PULSE_COUNT; i++) {
+    pc[i*3]     = 0.3 * colorBright;
+    pc[i*3+1]   = 0.7 * colorBright;
+    pc[i*3+2]   = 1.0 * colorBright;
+  }
+  pulseGeo.attributes.color.needsUpdate = true;
+
+  // Update inner glow — more visible when speaking
+  glowMat.opacity = 0.04 + amplitude * 0.12;
+
+  // Rotation speeds
+  const t = performance.now() / 1000;
+  fixedPoints.rotation.y += 0.0015 + amplitude * 0.0005;
+  pulsePoints.rotation.y += 0.003 + amplitude * 0.005;
+  pulsePoints.rotation.x = Math.sin(t * 0.4) * 0.03 * (0.3 + amplitude * 0.7);
+  glowMesh.rotation.y += 0.001;
+  glowMesh.rotation.x += 0.0005;
+
+  // Background elements — subtle rotation
+  starField.rotation.y += 0.0003;
+  ring.rotation.z += 0.002;
+  ring2.rotation.z -= 0.0015;
+  ring.material.opacity = 0.08 + 0.04 * Math.sin(t * 0.5);
+
+  // Camera subtle sway
+  camera.position.x = Math.sin(t * 0.1) * 0.3;
+  camera.position.y = Math.sin(t * 0.15) * 0.2;
+  camera.lookAt(0, 0, 0);
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// --- Resize ---
+function onResize() {
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+window.addEventListener('resize', onResize);
+
+// --- Public API: controls the pulsing sphere ---
+window.JarvisSphere = {
+  /** AI is speaking — inner sphere expands fully */
+  setSpeaking(speaking) {
+    isSpeaking = speaking;
+    targetAmplitude = speaking ? 1.0 : 0;
+  },
+  /** Gentle idle pulse while AI is thinking (overrides rest only) */
+  setIdlePulse(intensity) {
+    if (!isSpeaking) {
+      targetAmplitude = intensity * 0.15;
+    }
+  },
+};
+
+console.log('Jarvis dual sphere initialized (fixed + pulsing)');
+</script>
+
+<!-- ================================================================
+     CHAT & WEBSOCKET
+     ================================================================ -->
+<script type="module">
+// ================================================================
+// WebSocket Chat Client
+// ================================================================
+
+const WS_URL = `ws://${window.location.host}/api/chat`;
+let ws = null;
+let currentResponseText = '';
+let isProcessing = false;
+
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('message-input');
+const sendBtn = document.getElementById('send-btn');
+const greetingEl = document.getElementById('greeting');
+const thinkingEl = document.getElementById('thinking');
+const statusText = document.getElementById('connection-status');
+
+// --- Audio playback ---
+let audioContext = null;
+let isSpeakingFlag = false;
+
+function getAudioContext() {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioContext;
+}
+
+async function speakText(text) {
+  if (!text || text.trim() === '') return;
+  
+  // Strip emojis and other non-word symbols from speech
+  const cleanText = text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{2934}\u{2935}\u{25AA}\u{25AB}\u{25FB}\u{25FC}\u{25FD}\u{25FE}\u{2B05}\u{2B06}\u{2B07}\u{2B1B}\u{2B1C}\u{2B50}\u{2B55}\u{3030}\u{303D}\u{3297}\u{3299}]/gu, '').trim();
+  
+  if (!cleanText) return;
+  
+  try {
+    const resp = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: cleanText, voice: 'en-US-GuyNeural' }),
+    });
+    const data = await resp.json();
+    if (data.success && data.path) {
+      // Play the audio file
+      isSpeakingFlag = true;
+      if (window.JarvisSphere) {
+        window.JarvisSphere.setSpeaking(true);
+      }
+
+      const audio = new Audio(`/api/audio/file?path=${encodeURIComponent(data.path)}`);
+      audio.volume = 0.8;
+      audio.play();
+
+      audio.onended = () => {
+        isSpeakingFlag = false;
+        if (window.JarvisSphere) {
+          window.JarvisSphere.setSpeaking(false);
+        }
+      };
+
+      // Safety timeout
+      setTimeout(() => {
+        if (isSpeakingFlag) {
+          isSpeakingFlag = false;
+          if (window.JarvisSphere) {
+            window.JarvisSphere.setSpeaking(false);
+          }
+        }
+      }, 30000);
+    }
+  } catch (e) {
+    console.warn('TTS error:', e);
+  }
+}
+
+// --- Connect WebSocket ---
+function connectWebSocket() {
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    console.log('Chat WebSocket connected');
+    statusText.textContent = 'SYSTEM ONLINE';
+    statusText.className = 'online';
+  };
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    switch (data.type) {
+      case 'thinking':
+        // Show thinking indicator, hide greeting
+        greetingEl.classList.add('hidden');
+        thinkingEl.style.display = 'block';
+        if (window.JarvisSphere) {
+          window.JarvisSphere.setIdlePulse(0.5);
+        }
+        currentResponseText = '';
+        // Show subtitle bar with thinking text
+        const subBar = document.getElementById('subtitle-bar');
+        if (localStorage.getItem('jarvis_subtitles') !== 'false') {
+          subBar.textContent = 'PROCESSING...';
+          subBar.style.display = '';
+        }
+        break;
+
+      case 'delta':
+        // Streaming text — update chat AND subtitle bar
+        currentResponseText += data.text;
+        updateLastJarvisMessage(currentResponseText);
+        const subBar2 = document.getElementById('subtitle-bar');
+        if (localStorage.getItem('jarvis_subtitles') !== 'false' && currentResponseText.trim()) {
+          subBar2.textContent = currentResponseText;
+          subBar2.style.display = '';
+        }
+        break;
+
+      case 'done':
+        // Response complete
+        thinkingEl.style.display = 'none';
+        if (window.JarvisSphere) {
+          window.JarvisSphere.setSpeaking(false);
+          window.JarvisSphere.setIdlePulse(0);
+        }
+        // Hide subtitle bar after a short delay
+        setTimeout(() => {
+          document.getElementById('subtitle-bar').style.display = 'none';
+          document.getElementById('subtitle-bar').textContent = '';
+        }, 5000);
+        isProcessing = false;
+        updateSendButton();
+
+        // Use either streamed text (from deltas) or the full response from 'done'
+        const finalText = currentResponseText || data.text || '';
+        if (finalText) {
+          addJarvisMessage(finalText, true);
+          const autospeak = localStorage.getItem('jarvis_autospeak') !== 'false';
+          if (autospeak) {
+            speakText(finalText);
+          }
+        }
+        currentResponseText = '';
+        break;
+
+      case 'error':
+        thinkingEl.style.display = 'none';
+        statusText.textContent = 'SYSTEM OFFLINE';
+        statusText.className = 'offline';
+        isProcessing = false;
+        updateSendButton();
+        addJarvisMessage(`⚠ ${data.text}`, false);
+        break;
+    }
+  };
+
+  ws.onclose = () => {
+    console.log('Chat WebSocket disconnected, reconnecting in 3s...');
+    statusText.textContent = 'RECONNECTING...';
+    statusText.className = 'offline';
+    setTimeout(connectWebSocket, 3000);
+  };
+
+  ws.onerror = (err) => {
+    console.error('WebSocket error:', err);
+    statusText.textContent = 'CONNECTION ERROR';
+    statusText.className = 'offline';
+  };
+}
+
+// --- Messages ---
+function addUserMessage(text) {
+  const div = document.createElement('div');
+  div.className = 'msg user';
+  div.textContent = text;
+  messagesEl.appendChild(div);
+  scrollToBottom();
+
+  // Remove greeting on first message
+  greetingEl.classList.add('hidden');
+}
+
+function addJarvisMessage(text, withSpeaker = false) {
+  const el = document.createElement('div');
+  el.className = 'msg jarvis';
+  el.innerHTML = (withSpeaker ? '<span class="speaker">◆</span> ' : '') + escapeHtml(text);
+  messagesEl.appendChild(el);
+  scrollToBottom();
+}
+
+let lastJarvisEl = null;
+
+function updateLastJarvisMessage(text) {
+  if (!lastJarvisEl || !lastJarvisEl.parentNode) {
+    lastJarvisEl = document.createElement('div');
+    lastJarvisEl.className = 'msg jarvis';
+    messagesEl.appendChild(lastJarvisEl);
+  }
+  // Format with speaker prefix
+  lastJarvisEl.innerHTML = `<span class="speaker">◆</span> ${escapeHtml(text)}`;
+  scrollToBottom();
+}
+
+function appendToLastJarvisMessage(text) {
+  if (!lastJarvisEl || !lastJarvisEl.parentNode) {
+    lastJarvisEl = document.createElement('div');
+    lastJarvisEl.className = 'msg jarvis';
+    messagesEl.appendChild(lastJarvisEl);
+  }
+  lastJarvisEl.innerHTML += escapeHtml(text);
+  scrollToBottom();
+}
+
+function scrollToBottom() {
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+// --- Send message ---
+function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text || isProcessing || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+  // Add user message to chat
+  addUserMessage(text);
+  inputEl.value = '';
+
+  // Reset last Jarvis message tracker
+  lastJarvisEl = null;
+
+  // Send via WebSocket
+  isProcessing = true;
+  updateSendButton();
+  ws.send(JSON.stringify({ type: 'message', text }));
+
+  // Focus back on input
+  inputEl.focus();
+}
+
+function updateSendButton() {
+  sendBtn.disabled = isProcessing;
+}
+
+// --- Enter key to send ---
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+sendBtn.addEventListener('click', sendMessage);
+
+// --- Microphone button ---
+const micBtn = document.getElementById('mic-btn');
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+
+micBtn.addEventListener('click', async () => {
+  if (isRecording) {
+    // Stop recording
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    micBtn.classList.remove('recording');
+    isRecording = false;
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    audioChunks = [];
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      // Stop all tracks
+      stream.getTracks().forEach(t => t.stop());
+
+      if (audioChunks.length === 0) return;
+
+      // Send to STT API
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      const formData = new FormData();
+      formData.append('audio', blob, 'recording.webm');
+
+      try {
+        const resp = await fetch('/api/stt/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await resp.json();
+        if (data.success && data.text) {
+          inputEl.value = data.text;
+          sendMessage();
+        }
+      } catch (e) {
+        console.warn('STT error:', e);
+      }
+    };
+
+    mediaRecorder.start();
+    micBtn.classList.add('recording');
+    isRecording = true;
+  } catch (e) {
+    console.warn('Mic access denied:', e);
+  }
+});
+
+// --- Image button ---
+const imageBtn = document.getElementById('image-btn');
+imageBtn.addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // For Mark 1, we'll just note the image was attached
+    // Full image support requires the Hermes vision tool
+    addUserMessage(`[Image attached: ${file.name}]`);
+    inputEl.value = `Analyze this image: ${file.name}`;
+    sendMessage();
+  };
+  input.click();
+});
+
+// --- Settings ---
+const settingsBtn = document.getElementById('settings-btn');
+const settingsPanel = document.getElementById('settings-panel');
+const closeSettings = document.getElementById('close-settings');
+const overlay = document.getElementById('overlay');
+
+settingsBtn.addEventListener('click', () => {
+  settingsPanel.classList.add('open');
+  overlay.classList.add('visible');
+  loadProviderSettings();
+});
+
+function closeSettingsPanel() {
+  settingsPanel.classList.remove('open');
+  overlay.classList.remove('visible');
+}
+
+closeSettings.addEventListener('click', closeSettingsPanel);
+overlay.addEventListener('click', closeSettingsPanel);
+
+// --- Load provider list + current settings ---
+async function loadProviderSettings() {
+  try {
+    // Load known provider presets
+    const provResp = await fetch('/api/providers');
+    const provData = await provResp.json();
+    const sel = document.getElementById('sel-provider');
+    const currentVal = sel.getAttribute('data-current') || '';
+    sel.innerHTML = '<option value="">— Select Provider —</option>';
+    provData.providers.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      if (p.id === currentVal) opt.selected = true;
+      sel.appendChild(opt);
+    });
+
+    // Load current provider config
+    const cfgResp = await fetch('/api/provider');
+    const cfg = await cfgResp.json();
+    sel.value = cfg.provider || '';
+    sel.setAttribute('data-current', cfg.provider || '');
+    document.getElementById('input-baseurl').value = cfg.base_url || '';
+    document.getElementById('input-apikey').value = '';
+
+    // Show base URL group for custom
+    document.getElementById('group-baseurl').style.display =
+      cfg.provider === 'custom' || !cfg.provider ? 'block' : 'none';
+  } catch (e) {
+    console.warn('Failed to load provider settings:', e);
+  }
+
+  // Update the model bar status without touching model selector
+  try {
+    const mR = await fetch('/api/provider');
+    const mCfg = await mR.json();
+    const keyStatus = document.getElementById('model-bar-key-status');
+    if (mCfg.has_key) {
+      keyStatus.textContent = '🔑 Key set';
+      keyStatus.className = 'key-status has-key';
+    } else {
+      keyStatus.textContent = '⚡ Free tier';
+      keyStatus.className = 'key-status no-key';
+    }
+    const providerNames = {
+      'openai': 'OpenAI', 'opencode-zen': 'OpenCode Zen', 'openrouter': 'OpenRouter',
+      'google': 'Google Gemini', 'anthropic': 'Anthropic', 'nvidia': 'NVIDIA NIM', 'ollama': 'Ollama',
+      'lm-studio': 'LM Studio', 'custom': 'Custom',
+    };
+    const provEl = document.getElementById('model-bar-provider');
+    provEl.textContent = providerNames[mCfg.provider] || mCfg.provider || '';
+  } catch (e) {}
+
+  // Load apps
+  loadApps();
+
+  // Load toggles
+  try {
+    const r2 = await fetch('/api/config');
+    const cfg2 = await r2.json();
+    document.getElementById('toggle-autospeak').classList.toggle('on', cfg2.auto_speak !== false);
+    document.getElementById('toggle-boot').classList.toggle('on', cfg2.start_on_boot === true);
+    localStorage.setItem('jarvis_autospeak', cfg2.auto_speak !== false);
+    // Verify actual startup registration status
+    try {
+      const startR = await fetch('/api/startup/status');
+      const startData = await startR.json();
+      if (startData.success) {
+        // Sync toggle with actual registration state
+        document.getElementById('toggle-boot').classList.toggle('on', startData.registered === true);
+      }
+    } catch (_) {}
+    // Load local UI toggles
+    const showSubtitles = localStorage.getItem('jarvis_subtitles') !== 'false';
+    document.getElementById('toggle-subtitles').classList.toggle('on', showSubtitles);
+    document.getElementById('subtitle-bar').style.display = showSubtitles ? '' : 'none';
+    const showChatInput = localStorage.getItem('jarvis_chat_input') !== 'false';
+    document.getElementById('toggle-chat-input').classList.toggle('on', showChatInput);
+    document.getElementById('chat-area').style.display = showChatInput ? '' : 'none';
+  } catch (e) {}
+
+  // Load provider keys manager
+  loadProviderKeysManager();
+}
+
+async function loadProviderKeysManager() {
+  try {
+    const resp = await fetch('/api/provider/keys');
+    const data = await resp.json();
+    const container = document.getElementById('provider-keys-list');
+    if (!data.success || !data.providers || data.providers.length === 0) {
+      container.innerHTML = '<p class="setting-hint">No providers loaded.</p>';
+      return;
+    }
+    container.innerHTML = data.providers.map(p => `
+      <div class="provider-key-row" data-provider="${p.id}">
+        <span class="pname">${p.name}</span>
+        <span class="pstatus ${p.has_key ? 'has-key' : 'no-key'}">
+          ${p.has_key ? '✓ Key set' : 'No key'}
+        </span>
+        <input type="password" class="pkey-input" placeholder="sk-..."
+               value="" />
+        <button class="edit-key-btn" data-action="toggle-vis">👁</button>
+        <button class="edit-key-btn" data-action="save-key">💾</button>
+        ${p.is_current ? '<span class="is-current">ACTIVE</span>' : ''}
+      </div>
+    `).join('');
+
+    // Wire up toggle visibility
+    container.querySelectorAll('[data-action="toggle-vis"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const input = btn.parentElement.querySelector('.pkey-input');
+        input.type = input.type === 'password' ? 'text' : 'password';
+        btn.textContent = input.type === 'password' ? '👁' : '👁‍🗨';
+      });
+    });
+
+    // Wire up save key
+    container.querySelectorAll('[data-action="save-key"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const row = btn.parentElement;
+        const providerId = row.dataset.provider;
+        const input = row.querySelector('.pkey-input');
+        const key = input.value.trim();
+        if (!key) return;
+
+        try {
+          const r = await fetch('/api/provider/keys', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [providerId]: key }),
+          });
+          const res = await r.json();
+          if (res.success) {
+            const status = row.querySelector('.pstatus');
+            status.textContent = '✓ Key set';
+            status.className = 'pstatus has-key';
+            input.value = '';
+            showTestResult(`API key saved for ${providerId}`, 'success');
+            // Re-fetch models with new key
+            fetchModelsForCurrentProvider();
+          }
+        } catch (e) {
+          showTestResult('Failed to save key', 'error');
+        }
+      });
+    });
+  } catch (e) {
+    console.warn('Failed to load provider keys:', e);
+  }
+}
+
+// --- Provider selection changes → auto-fetch models ---
+document.getElementById('sel-provider').addEventListener('change', async () => {
+  const sel = document.getElementById('sel-provider');
+  const isCustom = sel.value === 'custom' || sel.value === '';
+  document.getElementById('group-baseurl').style.display = isCustom ? 'block' : 'none';
+
+  if (!sel.value || sel.value === 'custom') return;
+
+  // Auto-fetch models when provider is selected
+  const apiKey = document.getElementById('input-apikey').value;
+  let baseUrl = document.getElementById('input-baseurl').value;
+  
+  // Get default base_url for this provider if not custom
+  if (!baseUrl) {
+    try {
+      const resp = await fetch('/api/providers');
+      const data = await resp.json();
+      const provider = data.providers.find(p => p.id === sel.value);
+      if (provider && provider.base_url) baseUrl = provider.base_url;
+    } catch (e) {}
+  }
+
+  if (!baseUrl) return;
+
+  const chatSel = document.getElementById('chat-model-select');
+  chatSel.innerHTML = '<option value="">Fetching models...</option>';
+
+  try {
+    // Pass current API key so backend can validate which models are accessible
+    const reqBody = { base_url: baseUrl };
+    if (apiKey) reqBody.api_key = apiKey;
+
+    const resp = await fetch('/api/provider/models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reqBody),
+    });
+    const data = await resp.json();
+    if (data.success && data.models && data.models.length > 0) {
+      // Populate select with all models + custom option
+      chatSel.innerHTML = data.models.map(m =>
+        `<option value="${m}">${m}</option>`
+      ).join('') + '<option value="custom" disabled>──────────</option>' +
+        '<option value="custom">✏️ Custom model...</option>';
+      
+      // Select the first model OR keep current if available
+      const current = localStorage.getItem('jarvis_model') || '';
+      if (current && data.models.includes(current)) {
+        chatSel.value = current;
+      } else {
+        chatSel.value = data.models[0];
+      }
+      // Trigger change to save the model
+      chatSel.dispatchEvent(new Event('change'));
+    } else {
+      chatSel.innerHTML = '<option value="">No models found</option>';
+    }
+  } catch (e) {
+    chatSel.innerHTML = '<option value="">Failed to fetch models</option>';
+  }
+});
+
+// --- Save provider ---
+document.getElementById('btn-save-provider').addEventListener('click', async () => {
+  const provider = document.getElementById('sel-provider').value;
+  const model = document.getElementById('chat-model-select').value;
+  const apiKey = document.getElementById('input-apikey').value;
+  const baseUrl = document.getElementById('input-baseurl').value;
+
+  if (!provider) { showTestResult('Please select a provider.', 'error'); return; }
+  if (!model || model === '' || model === 'Loading models...' || model === 'No models found') {
+    showTestResult('No model selected. Choose one from the dropdown below the chat input.', 'error');
+    return;
+  }
+
+  const body = { provider, model };
+  if (apiKey) body.api_key = apiKey;
+  if (baseUrl) body.base_url = baseUrl;
+
+  try {
+    const resp = await fetch('/api/provider/set', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showTestResult(`Provider set to ${data.provider} / ${data.model}`, 'success');
+      document.getElementById('sel-provider').setAttribute('data-current', provider);
+      updateModelBar();
+      // Re-fetch models now that API key may have been added/removed
+      fetchModelsForCurrentProvider();
+    } else {
+      showTestResult('Failed to save provider', 'error');
+    }
+  } catch (e) {
+    showTestResult('Error saving provider: ' + e.message, 'error');
+  }
+});
+
+// --- Test connection ---
+document.getElementById('btn-test-provider').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-test-provider');
+  btn.disabled = true;
+  btn.textContent = '⟳ Testing...';
+  showTestResult('Testing connection...', '');
+
+  const provider = document.getElementById('sel-provider').value;
+  const model = document.getElementById('chat-model-select').value;
+  const apiKey = document.getElementById('input-apikey').value;
+  const baseUrl = document.getElementById('input-baseurl').value;
+
+  if (!provider || !model || model === 'Fetching models...' || model === 'No models found' || model === 'Failed to fetch models') {
+    showTestResult('Select a provider and model first.', 'error');
+    btn.disabled = false;
+    btn.textContent = '⟳ Test Connection';
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/provider/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, model, api_key: apiKey || undefined, base_url: baseUrl || undefined }),
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showTestResult('✓ Connected! Response: ' + (data.message || 'OK'), 'success');
+    } else {
+      showTestResult('✗ ' + (data.message || 'Connection failed'), 'error');
+    }
+  } catch (e) {
+    showTestResult('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⟳ Test Connection';
+  }
+});
+
+function showTestResult(msg, type) {
+  const el = document.getElementById('test-result');
+  el.textContent = msg;
+  el.className = 'test-result' + (type ? ' ' + type : '');
+  el.style.display = msg ? 'block' : 'none';
+}
+
+// --- API Key visibility toggle ---
+document.getElementById('toggle-apikey-vis').addEventListener('click', () => {
+  const input = document.getElementById('input-apikey');
+  const btn = document.getElementById('toggle-apikey-vis');
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    input.type = 'password';
+    btn.textContent = '👁';
+  }
+});
+
+// --- Toggle switches ---
+document.querySelectorAll('.toggle-switch').forEach(el => {
+  el.addEventListener('click', async () => {
+    el.classList.toggle('on');
+    const cfg = {
+      auto_speak: document.getElementById('toggle-autospeak').classList.contains('on'),
+      start_on_boot: document.getElementById('toggle-boot').classList.contains('on'),
+    };
+    localStorage.setItem('jarvis_autospeak', cfg.auto_speak);
+
+    // Apply subtitles toggle immediately
+    if (el.id === 'toggle-subtitles') {
+      const on = el.classList.contains('on');
+      localStorage.setItem('jarvis_subtitles', on);
+      document.getElementById('subtitle-bar').style.display = on ? '' : 'none';
+    }
+
+    // Apply chat input toggle immediately
+    if (el.id === 'toggle-chat-input') {
+      const on = el.classList.contains('on');
+      localStorage.setItem('jarvis_chat_input', on);
+      document.getElementById('chat-area').style.display = on ? '' : 'none';
+    }
+
+    try {
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cfg),
+      });
+    } catch (e) {
+      console.warn('Failed to save toggle:', e);
+    }
+  });
+});
+
+// --- Model selector bar (below chat input) ---
+async function fetchModelsForCurrentProvider() {
+  /* Fetch available models from the current provider and populate the select. */
+  try {
+    const cfgResp = await fetch('/api/provider');
+    const cfg = await cfgResp.json();
+    if (!cfg.base_url) return;
+
+    const chatSel = document.getElementById('chat-model-select');
+    chatSel.innerHTML = '<option value="">Loading models...</option>';
+
+    const resp = await fetch('/api/provider/models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        base_url: cfg.base_url,
+        // Backend auto-detects which models are accessible
+      }),
+    });
+    const data = await resp.json();
+    if (data.success && data.models && data.models.length > 0) {
+      chatSel.innerHTML = data.models.map(m =>
+        `<option value="${m}">${m}</option>`
+      ).join('') + '<option value="custom" disabled>──────────</option>' +
+        '<option value="custom">✏️ Custom model...</option>';
+      // Select current model if available
+      if (cfg.model && data.models.includes(cfg.model)) {
+        chatSel.value = cfg.model;
+      } else if (localStorage.getItem('jarvis_model') && data.models.includes(localStorage.getItem('jarvis_model'))) {
+        chatSel.value = localStorage.getItem('jarvis_model');
+      } else {
+        chatSel.value = data.models[0];
+      }
+      // Persist and announce the model
+      localStorage.setItem('jarvis_model', chatSel.value);
+      fetch('/api/provider/set', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({model: chatSel.value}) }).catch(()=>{});
+    } else {
+      chatSel.innerHTML = `<option value="${cfg.model || 'deepseek-v4-flash-free'}">${cfg.model || 'deepseek-v4-flash-free'}</option>` +
+        '<option value="custom">✏️ Custom model...</option>';
+    }
+  } catch (e) {
+    console.warn('Failed to fetch models:', e);
+  }
+}
+
+async function updateModelBar() {
+  const sel = document.getElementById('chat-model-select');
+  const keyStatus = document.getElementById('model-bar-key-status');
+  const providerEl = document.getElementById('model-bar-provider');
+
+  try {
+    const resp = await fetch('/api/provider');
+    const cfg = await resp.json();
+    // Try server model first, fall back to localStorage, then default
+    const currentModel = cfg.model || localStorage.getItem('jarvis_model') || 'deepseek-v4-flash-free';
+    const currentProvider = cfg.provider || 'opencode-zen';
+
+    sel.value = currentModel;
+
+    // Show API key status
+    if (cfg.has_key) {
+      keyStatus.textContent = '🔑 Key set';
+      keyStatus.className = 'key-status has-key';
+    } else {
+      keyStatus.textContent = '⚡ Free tier';
+      keyStatus.className = 'key-status no-key';
+    }
+
+    // Show provider name
+    const providerNames = {
+      'openai': 'OpenAI', 'opencode-zen': 'OpenCode Zen', 'openrouter': 'OpenRouter',
+      'google': 'Google Gemini', 'anthropic': 'Anthropic', 'nvidia': 'NVIDIA NIM', 'ollama': 'Ollama',
+      'lm-studio': 'LM Studio', 'custom': 'Custom',
+    };
+    providerEl.textContent = providerNames[currentProvider] || currentProvider;
+  } catch (e) {
+    console.warn('updateModelBar error:', e);
+  }
+}
+
+// When user changes model in the bar, save it
+document.getElementById('chat-model-select').addEventListener('change', async () => {
+  const sel = document.getElementById('chat-model-select');
+  const val = sel.value.trim();
+
+  // If user selects "Custom model...", show the custom input panel
+  if (val === 'custom') {
+    document.getElementById('custom-model-panel').style.display = 'flex';
+    document.getElementById('custom-model-input').value = '';
+    document.getElementById('custom-model-input').focus();
+    return;
+  }
+
+  // Hide custom panel if shown
+  document.getElementById('custom-model-panel').style.display = 'none';
+
+  if (!val) return;
+  localStorage.setItem('jarvis_model', val);
+  try {
+    await fetch('/api/provider/set', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: val }),
+    });
+  } catch (e) {
+    console.warn('Failed to update model:', e);
+  }
+});
+
+// Set custom model button
+document.getElementById('custom-model-set').addEventListener('click', () => {
+  const input = document.getElementById('custom-model-input');
+  const model = input.value.trim();
+  if (!model) return;
+
+  const sel = document.getElementById('chat-model-select');
+  // Add the custom model to the select options (if not already there)
+  if (![...sel.options].some(o => o.value === model)) {
+    sel.add(new Option(model, model));
+  }
+  sel.value = model;
+  document.getElementById('custom-model-panel').style.display = 'none';
+  sel.dispatchEvent(new Event('change'));
+});
+
+// Also Enter key in custom model input saves it
+document.getElementById('custom-model-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    document.getElementById('custom-model-set').click();
+  }
+});
+
+// --- Apps ---
+async function loadApps() {
+  try {
+    const resp = await fetch('/api/apps');
+    const data = await resp.json();
+    const list = document.getElementById('app-list');
+    list.innerHTML = '';
+    data.apps.forEach(app => {
+      const div = document.createElement('div');
+      div.className = 'app-item';
+      div.innerHTML = `
+        <span>${escapeHtml(app.name)}</span>
+        <span style="color:#335577;font-size:0.75rem;">${escapeHtml(app.command)}</span>
+        <button class="del-btn" data-name="${escapeHtml(app.name)}">✕</button>
+      `;
+      div.querySelector('.del-btn').addEventListener('click', async () => {
+        await fetch('/api/apps', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: app.name }),
+        });
+        loadApps();
+      });
+      list.appendChild(div);
+    });
+  } catch (e) {
+    console.warn('Failed to load apps:', e);
+  }
+}
+
+document.getElementById('add-app-btn').addEventListener('click', async () => {
+  const name = document.getElementById('new-app-name').value.trim();
+  const cmd = document.getElementById('new-app-cmd').value.trim();
+  if (!name || !cmd) return;
+
+  await fetch('/api/apps', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, command: cmd, args: '' }),
+  });
+
+  document.getElementById('new-app-name').value = '';
+  document.getElementById('new-app-cmd').value = '';
+  loadApps();
+});
+
+// --- Audio file serving endpoint ---
+// We need a way to serve generated audio files. Let's add it.
+
+// --- Init ---
+connectWebSocket();
+updateModelBar();
+fetchModelsForCurrentProvider();  // populate model dropdown with available models
+
+// Focus input on load
+inputEl.focus();
+
+console.log('Jarvis chat interface ready');
+</script>
+
+<!-- ================================================================
+     AUDIO FILE SERVING — add a fetch interceptor for /api/audio/file
+     ================================================================ -->
+<script>
+// This will be served by the backend; for now add a note
+(async function() {
+  // Check if backend is reachable
+  try {
+    const resp = await fetch('/api/status');
+    const data = await resp.json();
+    console.log('Jarvis backend:', data);
+  } catch (e) {
+    console.warn('Backend not reachable:', e.message);
+  }
+})();
+</script>
+
+</body>
+</html>

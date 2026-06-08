@@ -1,0 +1,12 @@
+# Jarvis Mark 1 - Dependencies
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+websockets>=13.0
+edge-tts>=6.0
+python-multipart>=0.0.9
+
+# Optional: Local speech-to-text (install manually if needed)
+# faster-whisper>=1.0.0
+
+# Optional: Desktop window wrapper
+# pywebview>=5.0.0

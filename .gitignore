@@ -1,0 +1,60 @@
+# ──────────────────────────────────────────────
+# Jarvis Mark 1 — .gitignore
+# ──────────────────────────────────────────────
+
+# --- Secrets & API Keys ---
+.env
+.env.*
+*.key
+*.pem
+
+# --- Jarvis Runtime Data (contains API keys) ---
+# Note: actual runtime config is at ~/.jarvis/ (outside repo)
+# These catch any accidental copies in the project directory
+.jalvis/
+config.json
+registered_apps.json
+
+# --- Python Bytecode ---
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+
+# --- Virtual Environment ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- IDE / Editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- OS Generated Auto-Start Files ---
+*.vbs
+*.lnk
+
+# --- Build / Dist ---
+dist/
+build/
+*.egg-info/
+*.egg
+
+# --- Logs ---
+*.log
+
+# --- Scratch / Test Files ---
+# test_api.py contains placeholder API key code — exclude to avoid accidents
+test_api.py
+test_*.py
+
+# --- External Reference Repositories ---
+# The full mark-xl-analysis clone is a separate repo.
+# Its analysis summary is in references/mark-xl-analysis.md
+mark-xl-analysis/
