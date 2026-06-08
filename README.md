@@ -1,24 +1,26 @@
-# J.A.R.V.I.S. Mark 1
+# J.A.R.V.I.S. Mark I
 
 **Just A Rather Very Intelligent System** — An AI-powered desktop assistant inspired by Iron Man's JARVIS.
 
-Built with a FastAPI backend and a Three.js 3D holographic web interface. Supports multiple AI providers, voice, tools, and PC control.
+Built with a FastAPI backend and a Three.js 3D holographic web interface. Supports multiple AI providers, tools, and PC control.
 
 > ⚠️ **Early Development Phase** — This is Mark 1 of a planned 20+ version series. Bugs and incomplete features are expected. See [Known Bugs](#-known-bugs) below.
+
+> ⚠️ **Hobby Project/Concept Idea** — This is a project made by someone who doesn't know how to code but wanted to have something close to a real life Jarvis. I can understand the hate for AI but let's be real, the idea of Jarvis is cool (just without the whole Ultron thing). The goal if this project is to make something similar to Jarvis utilizing projects like [Hermes](https://hermes-agent.nousresearch.com/) and [Odysseus](https://github.com/pewdiepie-archdaemon/odysseus) to build the ultimate AI assistant.
 
 ---
 
 ## ⚡ Quick Start
 
 ### Requirements
-- **Python 3.8+** installed on your system ([python.org](https://python.org))
-- Approximately 2GB of free disk space (for dependencies and optional speech models)
+- **Python 3.8+** ([python.org](https://python.org))
+- Approximately 4GB of free disk space (for dependencies and optional speech models)
 
 ### Windows (One-Click)
 1. Download or clone this repository
 2. Double-click **`start_jarvis.bat`**
 3. Wait for dependencies to install (first run only)
-4. Your browser will open to `http://127.0.0.1:9119`
+4. Your browser should open to `http://127.0.0.1:9119`
 
 ### Manual Setup (All Platforms)
 ```bash
@@ -30,8 +32,6 @@ cd Jarvis-Mark-1
 python -m venv .venv
 # Windows:
 .venv\Scripts\activate
-# Linux/macOS:
-source .venv/bin/activate
 
 # 3. Install dependencies
 pip install -r backend/requirements.txt
@@ -44,15 +44,15 @@ python run_server.py
 Open your browser to **http://127.0.0.1:9119**
 
 You should see:
-- Two animated spheres (holographic interface)
+- Animated UI with spheres (holographic interface)
 - Connection status badge at bottom: **"SYSTEM ONLINE"**
-- A chat input area
+- A chat input area, with a model selector in the bottom left
 
 ---
 
 ## 🔌 Connecting an AI Provider
 
-Jarvis supports **9 providers**. You need at least one configured to chat.
+Jarvis supports **8+ providers**. You need at least one configured to chat.
 
 ### Free Option (No API Key Required)
 The default provider is **OpenCode Zen** — it offers free models with no API key needed:
@@ -60,15 +60,15 @@ The default provider is **OpenCode Zen** — it offers free models with no API k
 2. Click the **gear icon** (Settings) in the top-right corner
 3. Select **"OpenCode Zen"** from the Provider dropdown
 4. Leave the API key field empty
-5. Click **"Fetch Models"** and select a free model (e.g., `deepseek-v4-flash-free`)
-6. Click **Save**
+5. Click **"Save Provider"**
+6. Click **Save**, then select a free model from the model selector (e.g., `big-pickle`)
 
 ### Paid Providers (API Key Required)
 1. Open Settings → Provider dropdown
 2. Select your provider (OpenAI, OpenRouter, Anthropic, Google Gemini, etc.)
 3. Enter your API key in the field
-4. Click **"Fetch Models"** to see available models for your key
-5. Select a model, then click **Save**
+4. Click **"Test Connection"** and then **"Save Provider"** to see available models
+5. Select a model, then chat away!
 
 | Provider | Base URL | API Key Needed |
 |----------|----------|----------------|
@@ -140,21 +140,21 @@ Full documentation available in the source code.
 
 ---
 
-## 🐛 Known Bugs (Mark 1)
+## 🐛 Known Bugs (Mark I)
 
 These issues are known and will be addressed in future versions:
 
 | Bug | Status |
 |-----|--------|
-| Models sometimes don't appear even if a provider is saved and selected | 🔧 Fix planned |
-| API errors can appear as responses even with valid API keys | 🔧 Fix planned |
+| Models sometimes don't appear even if a provider is saved and selected | 🗓️ Mark II |
+| API errors can appear as responses even with valid API keys | 🗓️ Mark II |
 | "Show Subtitle" toggle in settings doesn't work properly | 🗓️ Mark II |
 | "Show Chat Input" toggle in settings doesn't work properly | 🗓️ Mark II |
 | "Registered Apps" settings page is buggy or non-functional | 🗓️ Mark II |
 | Image input untested (no compatible models available for testing) | ❓ Unknown |
 | Voice input (speech-to-text) does not work at all | ❌ Broken |
 | Local LLMs (Ollama, LM Studio) untested — connections may be buggy | ⚠️ Unverified |
-| Server startup can fail with "Python not found" error despite Python being installed | 🔧 Fix planned |
+| Server startup can fail with "Python not found" error despite Python being installed | 🗓️ Mark II |
 
 ---
 
@@ -164,7 +164,7 @@ These issues are known and will be addressed in future versions:
 
 The author (Josh) provided design direction, bug reports, and feature requests. The actual code, documentation, and architecture were generated by AI agents through iterative prompting.
 
-This is not a commercial product — it's a learning project and proof of concept.
+This is not a commercial product — it's a learning project and proof of concept. All sources will be linked, and all credit will be given where is it due.
 
 ---
 
@@ -196,6 +196,13 @@ Jarvis Mark 1/
 
 ---
 
+## 📃 Credits
+
+Logic / Backend - [Hermes by Nous Research](https://hermes-agent.nousresearch.com/)
+UI Reference - [MARK XL — Local AI Assistant by FaithMakes](https://github.com/FatihMakes/Mark-XL)
+
+---
+
 ## 📜 License
 
 MIT License — free to use, modify, and distribute.
@@ -204,12 +211,9 @@ MIT License — free to use, modify, and distribute.
 
 ## 🗺️ Roadmap
 
-- **Mark 1** — Current release: Web-based UI, multi-provider support, basic tools, TTS/STT
-- **Mark 2** — PyQt6 desktop app, system tray, always-on voice wake word, persistent memory
-- **Mark 3+** — Screen awareness, HUD overlay, advanced automation, plugin system
+- **Mark I** — Current release: Web-based UI, multi-provider support, basic tools, TTS
+- **Mark II** — Desktop app, system tray, persistent memory, skills
+- **Mark III** — Screen awareness, always-on voice wake word, advanced automation, plugin system
+- **Mark IV** — And even more to come .....
 
-This project aims for **20+ versions** until the feature set feels complete or the author runs out of free API usage credits.
-
----
-
-*Built with ❤️ by Josh & Hermes Agent*
+This project aims for **20+ versions** until the feature set feels complete or the authors' free API usage credits no longer last long enough to continue development.
